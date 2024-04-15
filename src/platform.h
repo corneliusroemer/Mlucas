@@ -84,10 +84,10 @@
 
 /* Some of these are currently identified via the compiler (below) rather than directly: */
 // Jun 2017: For Win-builds under msys/mingw, allow defined(__MINGW32__) to override normal windos|linux preprocessing logic:
-#if !defined (__CYGWIN__) && (defined(__MINGW32__) || defined(__MINGW64__) || defined(WINDOWS) || defined(_WINDOWS) || defined(WIN32) || defined(_WIN32) || defined(_WIN64))
+#if !(defined(__MINGW32__) || defined(__MINGW64__) || defined(__CYGWIN__)) && (defined(WINDOWS) || defined(_WINDOWS) || defined(WIN32) || defined(_WIN32) || defined(_WIN64))
 	#define	OS_TYPE
 	#define	OS_TYPE_WINDOWS
-#elif defined(__CYGWIN__) || defined(linux) || defined(__linux__) || defined(__linux)
+#elif defined(__MINGW32__) || defined(__MINGW64__) || defined(__CYGWIN__) || defined(linux) || defined(__linux__) || defined(__linux)
 	#define	OS_TYPE
 	#define	OS_TYPE_LINUX
 #elif(defined(__APPLE__))
@@ -896,7 +896,7 @@ states that the compiler defines __64BIT__ if compiling in 64-bit mode.
 
 	   The symbol __ARM_EABI__ is not defined if compiles under the old EABI.
 	*/
-	#if !defined (OS_TYPE_WINDOWS) && !(defined(__ARMEL__) && defined(__ARM_EABI__))
+	#if !defined(__MINGW32__) && !(defined(__ARMEL__) && defined(__ARM_EABI__))
 		#error __ARM_ARCH predefine sequence expects both __ARMEL__ and __ARM_EABI__ to be defined! Please check your platforms predefine list using 'gcc -dM -E - < /dev/null' and forward the results to the program author/maintainer(s) listed on the README page.
 	#endif
 
@@ -1312,7 +1312,7 @@ extern int NTHREADS;
 
 #ifdef USE_THREADS
 
-	#if defined(COMPILER_TYPE_GCC)
+	#if defined(COMPILER_TYPE_GCC) && defined(OS_POSIX_COMPLIANT)
 
 		// OpenMP requires USE_OMP to be def'd in addition to USE_THREADS:
 		#ifdef USE_OMP
@@ -1330,7 +1330,7 @@ extern int NTHREADS;
 
 			#ifdef OS_TYPE_WINDOWS
 
-				#include "pthread.h"
+				#include "winpthreads.h"
 
 			#else
 

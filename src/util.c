@@ -2001,7 +2001,7 @@ uint32 get_system_ram(void) {
 // Apr 2024: Ditto for ARM Windows
 #ifdef CPU_IS_ARM_EABI
 
-  #if defined(OS_TYPE_MACOSX) || defined(OS_TYPE_WINDOWS)
+  #if defined(OS_TYPE_MACOSX) || defined(__MINGW32__)
 
 	int has_asimd(void)
 	{
