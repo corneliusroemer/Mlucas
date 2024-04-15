@@ -84,10 +84,10 @@
 
 /* Some of these are currently identified via the compiler (below) rather than directly: */
 // Jun 2017: For Win-builds under msys/mingw, allow defined(__MINGW32__) to override normal windos|linux preprocessing logic:
-#if !defined(__MINGW32__) && (defined(WINDOWS) || defined(_WINDOWS) || defined(WIN32) || defined(_WIN32) || defined(_WIN64))
+#if !defined (__CYGWIN__) && (defined(__MINGW32__) || defined(__MINGW64__) || defined(WINDOWS) || defined(_WINDOWS) || defined(WIN32) || defined(_WIN32) || defined(_WIN64))
 	#define	OS_TYPE
 	#define	OS_TYPE_WINDOWS
-#elif defined(__MINGW32__) || (defined(linux) || defined(__linux__) || defined(__linux))
+#elif defined(__CYGWIN__) || defined(linux) || defined(__linux__) || defined(__linux)
 	#define	OS_TYPE
 	#define	OS_TYPE_LINUX
 #elif(defined(__APPLE__))
@@ -896,8 +896,8 @@ states that the compiler defines __64BIT__ if compiling in 64-bit mode.
 
 	   The symbol __ARM_EABI__ is not defined if compiles under the old EABI.
 	*/
-	#if !(defined(__ARMEL__) && defined(__ARM_EABI__))
-		#error __ARM_ARCH predefine seqeunce expects both __ARMEL__ and __ARM_EABI__ to be defined! Please check your platforms predefine list using 'gcc -dM -E - < /dev/null' and forward the results to the program author/maintainer(s) listed on the README page.
+	#if !defined (OS_TYPE_WINDOWS) && !(defined(__ARMEL__) && defined(__ARM_EABI__))
+		#error __ARM_ARCH predefine sequence expects both __ARMEL__ and __ARM_EABI__ to be defined! Please check your platforms predefine list using 'gcc -dM -E - < /dev/null' and forward the results to the program author/maintainer(s) listed on the README page.
 	#endif
 
 	#ifndef OS_BITS
@@ -1312,81 +1312,82 @@ extern int NTHREADS;
 
 #ifdef USE_THREADS
 
-  #if defined(COMPILER_TYPE_GCC) && defined(OS_POSIX_COMPLIANT)
+	#if defined(COMPILER_TYPE_GCC)
 
-	// OpenMP requires USE_OMP to be def'd in addition to USE_THREADS:
-	#ifdef USE_OMP
-		#error OpenMP not supported - please build with just USE_THREADS to activate pthreads-based parallel capability.
-		// Found OpenMP header? The predefines here are for Linux, Sun Studio and Windows/MSVC, respectively:
-		#include <omp.h>
-		#if(defined(__OMP_H) || defined(_OPENMP) || defined(_OMPAPI))
-			#define MULTITHREAD
-			#define USE_OMP
-		#else
-			#error OpenMP header <omp.h> not detected - Platform may not provide OpenMP multithreading support.
-		#endif
+		// OpenMP requires USE_OMP to be def'd in addition to USE_THREADS:
+		#ifdef USE_OMP
+			#error OpenMP not supported - please build with just USE_THREADS to activate pthreads-based parallel capability.
+			// Found OpenMP header? The predefines here are for Linux, Sun Studio and Windows/MSVC, respectively:
+			#include <omp.h>
+			#if(defined(__OMP_H) || defined(_OPENMP) || defined(_OMPAPI))
+				#define MULTITHREAD
+				#define USE_OMP
+			#else
+				#error OpenMP header <omp.h> not detected - Platform may not provide OpenMP multithreading support.
+			#endif
 
-	#else	// Default is to use pthreads:
+		#else	// Default is to use pthreads:
 
-	 #ifdef OS_TYPE_WINDOWS
+			#ifdef OS_TYPE_WINDOWS
 
-		#include "winpthreads.h"
+				#include "pthread.h"
 
-	 #else
+			#else
 
-		/* Online docs [e.g. http://www.kernel.org/doc/man-pages/online/pages/man2/sched_setaffinity.2.html]
-		tell us that in order to access macros for `cpu_set', we must #define _GNU_SOURCE before including <sched.h>.
-		However, whether I define the above or not, on my distro (Fedora v16), I get these compile-time warnings
-		indicating that the affinity stuff is not being included:
+				/* Online docs [e.g. http://www.kernel.org/doc/man-pages/online/pages/man2/sched_setaffinity.2.html]
+				tell us that in order to access macros for `cpu_set', we must #define _GNU_SOURCE before including <sched.h>.
+				However, whether I define the above or not, on my distro (Fedora v16), I get these compile-time warnings
+				indicating that the affinity stuff is not being included:
 
-			"warning: implicit declaration of function 'CPU_ZERO'", etc.
+					"warning: implicit declaration of function 'CPU_ZERO'", etc.
 
-		Some sleuthing reveals that (at least in my distro) sched.h #includes <features.h>,
-		and the latter header then defines __USE_GNU if _GNU_SOURCE is defined.
-		In other words, #define _GNU_SOURCE simply causes __USE_GNU to also get defined.
-		Or at least it should, but my above-quoted build diagnostics indicate otherwise.
-		Even more bizarrely, when (in addition to defining just before including sched.h
-		in my threading-related header file) I add -D_GNU_SOURCE to my compile command line,
-		now all of a sudden the compiler sees both definitions and says
+				Some sleuthing reveals that (at least in my distro) sched.h #includes <features.h>,
+				and the latter header then defines __USE_GNU if _GNU_SOURCE is defined.
+				In other words, #define _GNU_SOURCE simply causes __USE_GNU to also get defined.
+				Or at least it should, but my above-quoted build diagnostics indicate otherwise.
+				Even more bizarrely, when (in addition to defining just before including sched.h
+				in my threading-related header file) I add -D_GNU_SOURCE to my compile command line,
+				now all of a sudden the compiler sees both definitions and says
 
-			platform.h:804:0: warning: "_GNU_SOURCE" redefined [enabled by default]
-			<command-line>:0:0: note: this is the location of the previous definition
+					platform.h:804:0: warning: "_GNU_SOURCE" redefined [enabled by default]
+					<command-line>:0:0: note: this is the location of the previous definition
 
-		...and the "implicit" warnings disppear. Anyway, add that one to the build-related mental "WTF?" bin
-		and just #define __USE_GNU instead.
-		*/
-		#define __USE_GNU
-		#include <sched.h>
+				...and the "implicit" warnings disppear. Anyway, add that one to the build-related mental "WTF?" bin
+				and just #define __USE_GNU instead.
+				*/
+				#define __USE_GNU
+				#include <sched.h>
 
-		#include <unistd.h>	// Needed for Posix sleep() command, among other things
-		#if defined(OS_TYPE_LINUX) && !defined(__MINGW32__)
+				#include <unistd.h>	// Needed for Posix sleep() command, among other things
+				#if defined(OS_TYPE_LINUX) && !defined(__MINGW32__)
 
-			// These additional Linux-only includes make sure __NR_gettid, used in our syscall-based get-thread-ID, is defined:
-			#include <linux/unistd.h>
-			#include <asm/unistd.h>
+					// These additional Linux-only includes make sure __NR_gettid, used in our syscall-based get-thread-ID, is defined:
+					#include <linux/unistd.h>
+					#include <asm/unistd.h>
 
-		#elif defined(OS_TYPE_MACOSX)
+				#elif defined(OS_TYPE_MACOSX)
 
-			// Mac OS X affinity API is via these:
-			#include <mach/thread_policy.h>
-			#include <mach/mach.h>
-			// Gah - the osx mach/*h header tree sets its version of various CPU_IS_*** #defs,
-			// incl. CPU_IS_SPARC, which then causes FP_MANTISSA_BITS_DOUBLE to get set to 53
-			// rather the x86_64-required 64 ... that caused me to rename CPU_IS_* to CPU_IS_*.
-		#endif
+					// Mac OS X affinity API is via these:
+					#include <mach/thread_policy.h>
+					#include <mach/mach.h>
+					// Gah - the osx mach/*h header tree sets its version of various CPU_IS_*** #defs,
+					// incl. CPU_IS_SPARC, which then causes FP_MANTISSA_BITS_DOUBLE to get set to 53
+					// rather the x86_64-required 64 ... that caused me to rename CPU_IS_* to CPU_IS_*.
+				#endif
 
-		#include <pthread.h>
-		// Found pthread header?
-		#if(defined(_PTHREAD_H) || defined(_PTHREAD_H_) || defined(WIN_PTHREADS_H))	// Apr 2018: Thanks to Elias Mariani for the OpenBSD mods
-			#define MULTITHREAD
-			#define USE_PTHREAD
-		#else
-			#error Pthreads header <pthread.h> not detected - Platform may not provide multithreading support.
-		#endif
+				#include <pthread.h>
 
-	  #endif	// OpenMP or Pthread
+			#endif	// OS_TYPE_WINDOWS?
 
-	 #endif	// OS_TYPE_WINDOWS?
+			// Found pthread header?
+			#if (defined(_PTHREAD_H) || defined(_PTHREAD_H_) || defined(WIN_PTHREADS_H))	// Apr 2018: Thanks to Elias Mariani for the OpenBSD mods
+				#define MULTITHREAD
+				#define USE_PTHREAD
+			#else
+				#error Pthreads header <pthread.h> not detected - Platform may not provide multithreading support.
+			#endif
+
+		#endif	// OpenMP or Pthread
 
 	#else
 		#error Multithreading currently only supported for builds using GCC and compatible compilers [LLVM/Clang and Intel C]!
